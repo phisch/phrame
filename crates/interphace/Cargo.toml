@@ -1,0 +1,20 @@
+[package]
+name = "interphace"
+description = "GUI library for wayland applications (windows and layers) utilizing skia for rendering."
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wayland-backend = { version = "0.1.2", features = ["client_system"] }
+wayland-client = { version = "0.30.1" }
+smithay-client-toolkit = { version = "0.17.0" }
+skia-safe = { version = "0.63.0", default-features = false, features = [
+    "wayland",
+    "binary-cache",
+    "textlayout",
+] }
+glutin = "0.30.8"
+glow = "0.12.1"
+env_logger = "0.10.0"
+raw-window-handle = "0.5.0"
+xkbcommon = "0.5.0"
