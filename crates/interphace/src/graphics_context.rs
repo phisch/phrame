@@ -17,18 +17,19 @@ use skia_safe::{
 use wayland_client::{protocol::wl_surface::WlSurface, Proxy};
 
 struct GraphicsContext {
+    wl_surface: WlSurface,
     possibly_current_context: PossiblyCurrentContext,
     window_surface: Surface<WindowSurface>,
     skia_surface: SkiaSurface,
 }
 
 impl GraphicsContext {
-    // function that creates a new instance from a WlSurface
-    pub fn new(wl_surface: &WlSurface) -> Self {
-        let (possibly_current_context, window_surface) = initialize_gl_context(wl_surface);
+    pub fn new(wl_surface: WlSurface) -> Self {
+        let (possibly_current_context, window_surface) = initialize_gl_context(&wl_surface);
         let skia_surface = initialize_skia(&window_surface, &possibly_current_context);
 
         Self {
+            wl_surface,
             possibly_current_context,
             window_surface,
             skia_surface,
