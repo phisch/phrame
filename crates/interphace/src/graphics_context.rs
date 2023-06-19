@@ -4,8 +4,14 @@ use glutin::{
     api::egl::{context::PossiblyCurrentContext, display::Display, surface::Surface},
     config::{Api, ConfigSurfaceTypes, ConfigTemplateBuilder, GetGlConfig},
     context::{ContextApi, ContextAttributesBuilder},
-    prelude::{GlConfig, GlDisplay, NotCurrentGlContextSurfaceAccessor},
+    prelude::{
+        GlConfig, GlDisplay, NotCurrentGlContextSurfaceAccessor,
+        PossiblyCurrentContextGlSurfaceAccessor,
+    },
     surface::{GlSurface, SurfaceAttributesBuilder, WindowSurface},
+};
+use raw_window_handle::{
+    RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
 };
 use skia_safe::{
     gpu::{
@@ -14,26 +20,34 @@ use skia_safe::{
     },
     ColorType, Surface as SkiaSurface,
 };
+use smithay_client_toolkit::shell::{xdg::window::Window, WaylandSurface};
 use wayland_client::{protocol::wl_surface::WlSurface, Proxy};
 
-struct GraphicsContext {
-    wl_surface: WlSurface,
+pub struct GraphicsContext {
     possibly_current_context: PossiblyCurrentContext,
-    window_surface: Surface<WindowSurface>,
-    skia_surface: SkiaSurface,
+    pub window_surface: Surface<WindowSurface>,
+    pub skia_surface: SkiaSurface,
 }
 
 impl GraphicsContext {
-    pub fn new(wl_surface: WlSurface) -> Self {
-        let (possibly_current_context, window_surface) = initialize_gl_context(&wl_surface);
+    pub fn new(xdg_window: &Window) -> Self {
+        let (possibly_current_context, window_surface) =
+            initialize_gl_context(xdg_window.wl_surface());
+
+        println!("GL context initialized");
         let skia_surface = initialize_skia(&window_surface, &possibly_current_context);
 
         Self {
-            wl_surface,
             possibly_current_context,
             window_surface,
             skia_surface,
         }
+    }
+
+    pub fn make_current(&mut self) {
+        self.possibly_current_context
+            .make_current(&self.window_surface)
+            .expect("Failed to make context current");
     }
 }
 
@@ -54,7 +68,7 @@ fn initialize_skia(
 
     let framebuffer_info = FramebufferInfo {
         fboid: Default::default(),
-        format: Format::RGBA8 as u32,
+        format: Format::RGBA8.into(),
     };
 
     let gr_backend_render_target = BackendRenderTarget::new_gl(
@@ -78,17 +92,17 @@ fn initialize_skia(
 fn initialize_gl_context(
     wl_surface: &WlSurface,
 ) -> (PossiblyCurrentContext, Surface<WindowSurface>) {
-    let mut wayland_display_handle = raw_window_handle::WaylandDisplayHandle::empty();
+    let mut wayland_display_handle = WaylandDisplayHandle::empty();
     wayland_display_handle.display = wl_surface
         .backend()
         .upgrade()
         .expect("Connection has been closed")
         .display_ptr() as *mut _;
-    let raw_display_handle = raw_window_handle::RawDisplayHandle::Wayland(wayland_display_handle);
+    let raw_display_handle = RawDisplayHandle::Wayland(wayland_display_handle);
 
-    let mut wayland_window_handle = raw_window_handle::WaylandWindowHandle::empty();
+    let mut wayland_window_handle = WaylandWindowHandle::empty();
     wayland_window_handle.surface = wl_surface.id().as_ptr() as *mut _;
-    let raw_window_handle = raw_window_handle::RawWindowHandle::Wayland(wayland_window_handle);
+    let raw_window_handle = RawWindowHandle::Wayland(wayland_window_handle);
 
     let display = unsafe { Display::new(raw_display_handle) }
         .expect("Failed to initialize Wayland EGL platform");
@@ -121,8 +135,8 @@ fn initialize_gl_context(
 
     let surface_attributes = SurfaceAttributesBuilder::<WindowSurface>::default().build(
         raw_window_handle,
-        NonZeroU32::new(10).unwrap(),
-        NonZeroU32::new(10).unwrap(),
+        NonZeroU32::new(100).unwrap(),
+        NonZeroU32::new(100).unwrap(),
     );
 
     let window_surface =
@@ -134,4 +148,12 @@ fn initialize_gl_context(
         .expect("Failed to make context current");
 
     (possibly_current_context, window_surface)
+}
+
+impl GraphicsContext {
+    pub fn swap_buffers(&mut self) {
+        self.window_surface
+            .swap_buffers(&self.possibly_current_context)
+            .expect("Failed to swap buffers");
+    }
 }
