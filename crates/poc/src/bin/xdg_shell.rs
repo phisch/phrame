@@ -35,14 +35,14 @@ use smithay_client_toolkit::{
 };
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface},
+    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface::{self, WlSurface}},
     Connection, Proxy, QueueHandle,
 };
 use xkbcommon::xkb::keysyms;
 
 
 fn main() {
-    env_logger::init();
+    //env_logger::init();
 
     let conn = Connection::connect_to_env().unwrap();
     let (globals, mut event_queue) = registry_queue_init(&conn).unwrap();
@@ -51,9 +51,11 @@ fn main() {
     let compositor = CompositorState::bind(&globals, &queue_handle).expect("wl_compositor is not available");
     let layer_shell = LayerShell::bind(&globals, &queue_handle).expect("layer shell is not available");
     
-    let surface = compositor.create_surface(&queue_handle);
-
+    
     let xdg_shell = XdgShell::bind(&globals, &queue_handle).expect("xdg_shell is not available");
+    
+    
+    let surface = compositor.create_surface(&queue_handle);
     let window = xdg_shell.create_window(surface, WindowDecorations::None, &queue_handle);
     
     window.set_title("title");
@@ -70,15 +72,10 @@ fn main() {
     
 
     let fb_info = {
-        let gl = unsafe {
-            glow::Context::from_loader_function_cstr(|name| {
-                context.display().get_proc_address(name) as *const _
-            })
-        };
-        let fboid = unsafe { gl.get_parameter_i32(glow::FRAMEBUFFER_BINDING) };
+        
 
         skia_safe::gpu::gl::FramebufferInfo {
-            fboid: fboid.try_into().expect("foo"),
+            fboid: Default::default(),
             format: skia_safe::gpu::gl::Format::RGBA8.into(),
         }
     };
@@ -164,7 +161,7 @@ fn create_surface(
 }
 
 fn init_egl(
-    surface: &wl_surface::WlSurface,
+    surface: &WlSurface,
     width: u32,
     height: u32,
 ) -> (
@@ -253,7 +250,7 @@ impl CompositorHandler for SimpleLayer {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
+        _surface: &WlSurface,
         _new_factor: i32,
     ) {
         // Not needed for this example.
@@ -263,7 +260,7 @@ impl CompositorHandler for SimpleLayer {
         &mut self,
         _conn: &Connection,
         qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
+        _surface: &WlSurface,
         _time: u32,
     ) {
         self.draw(&qh);
@@ -389,7 +386,7 @@ impl KeyboardHandler for SimpleLayer {
         _: &Connection,
         _: &QueueHandle<Self>,
         _: &wl_keyboard::WlKeyboard,
-        surface: &wl_surface::WlSurface,
+        surface: &WlSurface,
         _: u32,
         _: &[u32],
         keysyms: &[u32],
@@ -405,7 +402,7 @@ impl KeyboardHandler for SimpleLayer {
         _: &Connection,
         _: &QueueHandle<Self>,
         _: &wl_keyboard::WlKeyboard,
-        surface: &wl_surface::WlSurface,
+        surface: &WlSurface,
         _: u32,
     ) {
         if self.window.wl_surface() == surface {

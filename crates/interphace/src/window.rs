@@ -5,7 +5,7 @@ use wayland_client::{QueueHandle};
 use crate::{graphics_context::GraphicsContext, application::Application, backend::Backend};
 
 pub struct Window {
-    graphics_context: GraphicsContext,
+    pub graphics_context: GraphicsContext,
     pub xdg_window: XdgWindow
 }
 
@@ -15,6 +15,7 @@ impl Window {
         let xdg_window = application.backend.create_xdg_window(wl_surface);
         xdg_window.set_title("Interphace");
         xdg_window.commit();
+        
 
         let graphics_context = GraphicsContext::new(&xdg_window);
 

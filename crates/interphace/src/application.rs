@@ -1,4 +1,3 @@
-use smithay_client_toolkit::shell::xdg::window::WindowDecorations;
 use wayland_client::{globals::registry_queue_init, Connection, EventQueue};
 
 use crate::{backend::Backend, window::Window};
@@ -28,5 +27,9 @@ impl Application {
                 .blocking_dispatch(&mut self.backend)
                 .unwrap();
         }
+    }
+
+    pub fn create_window(&mut self) -> &Window {
+        self.backend.create_window()
     }
 }

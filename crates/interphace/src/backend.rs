@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_seat,
@@ -12,15 +14,18 @@ use smithay_client_toolkit::{
             window::{Window as XdgWindow, WindowDecorations, WindowHandler},
             XdgShell,
         },
+        WaylandSurface,
     },
 };
+use wayland_backend::client::ObjectId;
 use wayland_client::{
     globals::GlobalList,
     protocol::{wl_seat::WlSeat, wl_surface::WlSurface},
-    Connection, QueueHandle,
+    Connection, Proxy, QueueHandle,
 };
 
-use crate::window::Window;
+use crate::{window::Window, graphics_context::{self, GraphicsContext}};
+
 
 pub struct Backend {
     queue_handle: QueueHandle<Backend>,
@@ -30,8 +35,11 @@ pub struct Backend {
     output_state: OutputState,
     xdg_shell: XdgShell,
     layer_shell: LayerShell,
-    windows: Vec<Window>,
+    windows: HashMap<ObjectId, Window>,
 }
+
+
+
 
 impl Backend {
     pub fn new(global_list: GlobalList, queue_handle: QueueHandle<Backend>) -> Self {
@@ -55,7 +63,7 @@ impl Backend {
             output_state,
             xdg_shell,
             layer_shell,
-            windows: Vec::new(),
+            windows: HashMap::new(),
         }
     }
 
@@ -68,9 +76,30 @@ impl Backend {
             .create_window(surface, WindowDecorations::None, &self.queue_handle)
     }
 
-    pub fn add_window(&mut self, window: Window) {
-        self.windows.push(window);
+
+    pub fn create_window(&mut self) -> &Window {
+        let wl_surface = self.create_surface();
+        //let surface_id = wl_surface.id().clone();
+        let xdg_window = self.create_xdg_window(wl_surface);
+        xdg_window.commit();
+        let graphics_context = GraphicsContext::new(&xdg_window);
+        //let id = xdg_window.wl_surface().id().clone();
+
+        let window = Window {
+            graphics_context,
+            xdg_window
+        };
+
+        let rwindow = &window;
+
+
+        self.windows.insert(xdg_window.wl_surface().id(), window);
+        // get the window from the hashmap that was added last
+        rwindow
+
+        //self.windows.get_mut(&surface_id).unwrap()
     }
+
 }
 
 delegate_xdg_shell!(Backend);
@@ -88,15 +117,8 @@ impl WindowHandler for Backend {
         configure: smithay_client_toolkit::shell::xdg::window::WindowConfigure,
         _serial: u32,
     ) {
-        // find thew window that has the given xdg window and call draw on it
-        self.windows
-            .iter_mut()
-            .find(|w| &w.xdg_window == window)
-            .map(|w| w.draw(qh));
+        self.windows.get_mut(&window.wl_surface().id()).unwrap().draw(&qh);
 
-
-        // call draw on each window
-        //self.windows.iter_mut().for_each(|w| w.draw(qh));
         println!("Window configured to: {:?}", configure);
     }
 }
